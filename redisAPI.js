@@ -1,11 +1,6 @@
 /*
 README:
 this api serves to add profile, delete profile, sort profile and search profile
-the demo includes:
-1, generate 6 new profiles and print
-2, remove last profile and print
-3, sort by age and print all fields saperately
-4, search all profile that has gender of male and print
 environment:
 making sure you have node.js project environment and also ioredis package
 run: "node redisAPI.js" to execute.
@@ -250,87 +245,88 @@ async function subscribeStream(redis,stream, listener) {
   }
 }
 
-const {performance} = require('perf_hooks');
-var Redis = require("ioredis");
-var redis = new Redis();
 
-//below is bench mark section
-//bench mark are saperated under 3 sections: benchmark_size=100,000;1,000,000;5,000,000
-
-var time_stamp0;
-var time_stamp1;
-var time_stamp2;
-var benchmark_size=180000;
-
-/*
-//thi section is benchmarking in promise hell and without pipelining
-
-redis.flushall().then(function(){
-  time_stamp0 = performance.now();
-  console.log("benchmark size: "+benchmark_size);
-  initializeFakeData(redis,benchmark_size).then(function(){
+//benchmark
+async function benchmark(redis,benchmark_size,pipe_flag){
+  var time_stamp0;
+  var time_stamp1;
+  var time_stamp2;
+  redis.flushall().then(function(){
+    time_stamp0 = performance.now();
+    console.log("benchmark size: "+benchmark_size);
+    if(pipe_flag==1){
+      initializeFakeDataPip(redis,benchmark_size);
+    }
+    else{
+      initializeFakeData(redis,benchmark_size);
+    }
+  }).then(function(){
     time_stamp1 = performance.now();
     console.log("time for initialize data: "+benchmark_size);
     console.log(time_stamp1-time_stamp0);
-    sortEntryBy(redis,"ID","age","student_*->",["name","age","gender"]).then(function(){
-      time_stamp2 = performance.now();
-      console.log("time for sort operation: ");
-      console.log(time_stamp2-time_stamp1);
-      redis.memory("stats").then(function(result){
-        console.log(result[0]+": "+result[1]/1000000+"MB");
-        console.log(result[2]+": "+result[3]/1000000+"MB");
-      });
+    sortEntryBy(redis,"ID","age","student_*->",["name","age","gender"]);
+  }).then(function(){
+    time_stamp2 = performance.now();
+    console.log("time for sort operation: ");
+    console.log(time_stamp2-time_stamp1);
+    redis.memory("stats").then(function(result){
+      console.log(result[0]+": "+result[1]/1000000+"MB");
+      console.log(result[2]+": "+result[3]/1000000+"MB");
     });
   });
-});
-*/
+}
 
-//this section is refactored benchmarking with pipelining
-redis.flushall().then(function(){
-  time_stamp0 = performance.now();
-  console.log("benchmark size: "+benchmark_size);
-  initializeFakeDataPip(redis,benchmark_size);
-  //comment above line and uncomment below line to compare without pipelining
-  //initializeFakeData(redis,benchmark_size);
-}).then(function(){
-  time_stamp1 = performance.now();
-  console.log("time for initialize data: "+benchmark_size);
-  console.log(time_stamp1-time_stamp0);
-  sortEntryBy(redis,"ID","age","student_*->",["name","age","gender"]);
-}).then(function(){
-  time_stamp2 = performance.now();
-  console.log("time for sort operation: ");
-  console.log(time_stamp2-time_stamp1);
-  redis.memory("stats").then(function(result){
-    console.log(result[0]+": "+result[1]/1000000+"MB");
-    console.log(result[2]+": "+result[3]/1000000+"MB");
-  });
-});
 
-//standard test of API
 /*
-//generate fake data with 6 fake profiles
-redis.flushall();
-var benchmark_size=6;
-initializeFakeData(redis,benchmark_size);
-//print all profiles
-printAllProfile(redis,"ID",["student_1","student_2","student_3","student_4","student_5","student_6"]);
-//delete last one from redis
-deleteProfile(redis,"ID",6,"student_6");
-//print again to show deletion
-printAllProfile(redis,"ID",["student_1","student_2","student_3","student_4","student_5"]);
-//sort all profile by age
-sortEntryBy(redis,"ID","age","student_*->",["name","age","gender"]);
-//search all male profile
-searchEntryBy(redis,"student_",0,5,"gender","male");
-//initialize stream
-var today = new Date();
-var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-redis.xadd("fakestream",'*',"time",String(time));
-var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-redis.xadd("fakestream",'*',"time",String(time));
-var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-redis.xadd("fakestream",'*',"time",String(time));
-//listen to stream
-subscribeStream(redis,'fakestream', console.log);
+the demo includes:
+1, generate 6 new profiles and print
+2, remove last profile and print
+3, sort by age and print all fields saperately
+4, search all profile that has gender of male and print
+5, stream data from "fakestream" with current time as dummy data
 */
+async function API_test(redis){
+  //generate fake data with 6 fake profiles
+  redis.flushall();
+  var benchmark_size=6;
+  initializeFakeData(redis,benchmark_size);
+  //print all profiles
+  printAllProfile(redis,"ID",["student_1","student_2","student_3","student_4","student_5","student_6"]);
+  //delete last one from redis
+  deleteProfile(redis,"ID",6,"student_6");
+  //print again to show deletion
+  printAllProfile(redis,"ID",["student_1","student_2","student_3","student_4","student_5"]);
+  //sort all profile by age
+  sortEntryBy(redis,"ID","age","student_*->",["name","age","gender"]);
+  //search all male profile
+  searchEntryBy(redis,"student_",0,5,"gender","male");
+  //initialize stream
+  var today = new Date();
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  redis.xadd("fakestream",'*',"time",String(time));
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  redis.xadd("fakestream",'*',"time",String(time));
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  redis.xadd("fakestream",'*',"time",String(time));
+  //listen to stream
+  subscribeStream(redis,'fakestream', console.log);
+}
+
+const {performance} = require('perf_hooks');
+var Redis = require("ioredis");
+
+//single redis mode
+//var redis = new Redis();
+
+//sentinel mode
+var redis = new Redis({
+  sentinels: [
+    { host: "localhost", port: 5000 },
+    { host: "localhost", port: 5001 },
+    { host: "localhost", port: 5002 }
+  ],
+  name: "mymaster"
+});
+
+
+API_test(redis);
