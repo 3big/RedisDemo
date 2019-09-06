@@ -214,6 +214,20 @@ async function searchEntryBy(redis,entry_pattern,entry_range_start,entry_range_e
 }
 
 /*
+fucntion used to create association data and configuration
+to associate sensorA and userA with configuration of color=black:
+createAssociation(redis,"usn","ssn","sensorA","userA");
+createConfig(redis,"sensorA","userA","color","black")
+*/
+async function createAssociation(redis,typeA,typeB,nameA,nameB){
+  redis.sadd(String(typeA)+"_"+String(typeB)+":mapping:"+String(nameA),nameB);
+  redis.sadd(String(typeB)+"_"+String(typeA)+":mapping:"+String(nameB),nameA);
+}
+
+async function createConfig(redis,nameA,nameB,configName,configValue){
+  redis.hset("config:"+String(nameA)+"_"+String(nameB),configName,configValue);
+}
+/*
 //subscribeStream(redis,stream, listener)
   usage: allow sub to a stream. Block operation will update the listener once new stream is added
   all previous entries from this stream will be printed at the beginning
@@ -316,8 +330,8 @@ const {performance} = require('perf_hooks');
 var Redis = require("ioredis");
 
 //single redis mode
-//var redis = new Redis();
-
+var redis = new Redis();
+/*
 //sentinel mode
 var redis = new Redis({
   sentinels: [
@@ -327,6 +341,5 @@ var redis = new Redis({
   ],
   name: "mymaster"
 });
-
-
-API_test(redis);
+*/
+createAssociation(redis,"typeA","typeB","nameA","nameB");
