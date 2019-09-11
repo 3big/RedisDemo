@@ -1,5 +1,4 @@
 //used to add stream when testing sentinels
-const {performance} = require('perf_hooks');
 var Redis = require("ioredis");
 //sentinel mode
 
