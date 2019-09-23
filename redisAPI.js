@@ -219,7 +219,7 @@ to associate sensorA and userA with configuration of color=black:
 createAssociation(redis,"usn","ssn","sensorA","userA");
 createConfig(redis,"sensorA","userA","color","black");
 Be noted that config will not disappear if the association does not exist.
-It is designed in such way so the config is always saved if association is created in the future. 
+It is designed in such way so the config is always saved if association is created in the future.
 */
 async function createAssociation(redis,typeA,typeB,nameA,nameB){
   redis.sadd(String(typeA)+"_"+String(typeB)+":mapping:"+String(nameA),nameB);
@@ -333,8 +333,9 @@ var Redis = require("ioredis");
 
 //single redis mode
 var redis = new Redis();
-/*
+
 //sentinel mode
+/*
 var redis = new Redis({
   sentinels: [
     { host: "localhost", port: 5000 },
@@ -344,4 +345,6 @@ var redis = new Redis({
   name: "mymaster"
 });
 */
-createAssociation(redis,"typeA","typeB","nameA","nameB");
+API_test(redis);
+
+//createAssociation(redis,"typeA","typeB","nameA","nameB");

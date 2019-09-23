@@ -118,11 +118,6 @@ var Redis = require("ioredis");
 var dbMain = new Redis(6379);
 var db2nd = new Redis(6380);
 
-console.log("test data {test:HELLO}: ")
-dbMain.set("test","HELLO").then(function(){
-  saveCopy("test",dbMain,db2ns);
-}).then(function(){
-  dbMain.flushall();
-}).then(function(){
-  restoreRecentCopy("test",dbMain,db2nd);
-});
+
+//saveCopy("test",dbMain,db2nd);
+restoreRecentCopy("test",dbMain,db2nd);
