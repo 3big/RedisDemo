@@ -46,6 +46,7 @@ async function initializeUsers(redis, size) {
       'ml',
       0
     );
+    redis.sadd('user:idList', i);
   }
 }
 
@@ -74,7 +75,12 @@ async function initializeSensors(redis, size) {
       'drgcd',
       0
     );
+    redis.sadd('sensor:idList', i);
   }
+}
+
+async function addAdmin(redis, usn, pw) {
+  redis.hset('user:info:0', 'usn', usn, 'pw', pw);
 }
 
 redis
@@ -82,5 +88,8 @@ redis
   .then(() => {
     initializeUsers(redis, 100);
     initializeSensors(redis, 100);
+  })
+  .then(() => {
+    addAdmin(redis, 'root', 'root');
   })
   .then(console.log('complete'));

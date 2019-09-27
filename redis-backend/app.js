@@ -1,39 +1,31 @@
 const express = require('express');
 const Redis = require('ioredis');
+const jwt = require('jsonwebtoken');
+const { promisify } = require('util');
 
 const app = express();
 const redis = new Redis();
+
+const userController = require('./controllers/userController');
+const sensorController = require('./controllers/sensorController');
+const authController = require('./controllers/authController');
+
+const JWT_SECRETE = 'secrete';
+
 app.use(express.json());
 
-app.get('/redisApi/v0.3/users', async (req, res) => {
-  try {
-    const key_res = await redis.scan(0, 'MATCH', 'user:info:*', 'COUNT', 10000);
-    const users = await Promise.all(key_res[1].map(key => redis.hgetall(key)));
+app.route('/redisApi/v0.3/users').get(userController.getUsers);
 
-    res.status(200).json({ status: 'success', data: { users } });
-  } catch (error) {
-    res.status(500).json({ status: 'failure', data: { error } });
-  }
-});
+app
+  .route('/redisApi/v0.3/adminusers')
+  .get(authController.protect, userController.getUsers);
 
-app.get('/redisApi/v0.3/sensors', async (req, res) => {
-  try {
-    const key_res = await redis.scan(
-      0,
-      'MATCH',
-      'sensor:info:*',
-      'COUNT',
-      10000
-    );
-    const sensors = await Promise.all(
-      key_res[1].map(key => redis.hgetall(key))
-    );
+app.route('/redisApi/v0.3/sensors').get(sensorController.getSensors);
 
-    res.status(200).json({ status: 'success', data: { sensors } });
-  } catch (error) {
-    res.status(500).json({ status: 'failure', data: { error } });
-  }
-});
+//login
+app.route('/redisApi/v0.3/login').post(authController.logIn);
+
+//
 
 const port = 8000;
 app.listen(port, () => {
