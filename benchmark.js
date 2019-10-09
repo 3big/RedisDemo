@@ -210,7 +210,6 @@ async function sortEntryBy(redis,primary_key_name,sort_field,entry_pattern,entry
   search_entry: the search value of that field
 //example, to search male profiles from student 0 to 5:
   call searchEntryBy(redis,"student_",0,5,"gender","male")
-*/
 
 async function searchEntryBy(redis,entry_pattern,entry_range_start,entry_range_end,search_field,search_entry){
   let flag=false;
@@ -225,6 +224,21 @@ async function searchEntryBy(redis,entry_pattern,entry_range_start,entry_range_e
     });
   }
   if(flag){console.log("not found");}
+}
+*/
+
+async function searchEntryBy(redis,entry_pattern,search_field,search_entry){
+  let flag=false;
+  redis.scan(0,"MATCH",entry_pattern,"COUNT",100000).then(function(result){
+    for(let i=0; i<result[1].length; i++){
+      redis.hget(result[1][i],search_field).then(function(res){
+        if(res==search_entry){
+          flag=true;
+          //console.log(result[1][i]+" has match: "+res);
+        }
+      });
+    }
+  });
 }
 
 /*
@@ -277,7 +291,7 @@ async function subscribeStream(redis,stream, listener) {
 
 
 //benchmark
-async function benchmark(redis,benchmark_size,pipe_flag){
+async function benchmark(redis,benchmark_size,pipe_flag,lua_flag){
   var time_stamp0;
   var time_stamp1;
   var time_stamp2;
@@ -285,21 +299,62 @@ async function benchmark(redis,benchmark_size,pipe_flag){
     time_stamp0 = performance.now();
     console.log("benchmark size: "+benchmark_size);
     if(pipe_flag==1){
-      initializeFakeDataPip(redis,benchmark_size);
+      return initializeFakeDataPip(redis,benchmark_size);
     }
     else{
-      initializeFakeData(redis,benchmark_size);
+      return initializeFakeData(redis,benchmark_size);
     }
   }).then(function(){
     time_stamp1 = performance.now();
     console.log("time for initialize data: "+benchmark_size);
     console.log(time_stamp1-time_stamp0);
-    searchEntryBy(redis,"student_",0,size,"gender","male");
+    if(lua_flag==0){
+      return searchEntryBy(redis,"student_*","gender","male");
+    }
+    else{
+      return redis.luasearch("student_*","gender","male");
+    }
   }).then(function(){
     time_stamp2 = performance.now();
     console.log("time for search operation: ");
     console.log(time_stamp2-time_stamp1);
-    redis.memory("stats").then(function(result){
+    return redis.memory("stats").then(function(result){
+      console.log(result[0]+": "+result[1]/1000000+"MB");
+      console.log(result[2]+": "+result[3]/1000000+"MB");
+    });
+  });
+}
+
+async function benchmark2(redis,benchmark_size,pipe_flag,lua_flag){
+  redis.flushall().then(function(){
+    let time_stamp0 = performance.now();
+    console.log("benchmark size: "+benchmark_size);
+    console.log("time for initialize data: "+benchmark_size);
+    if(pipe_flag==1){
+      return initializeFakeDataPip(redis,benchmark_size).then(()=>{
+        console.log(performance.now()-time_stamp0);
+      });
+    }
+    else{
+      return initializeFakeData(redis,benchmark_size).then(()=>{
+        console.log(performance.now()-time_stamp0);
+      });
+    }
+  }).then(function(){
+    time_stamp1 = performance.now();
+    console.log("time for search operation: ");
+    if(lua_flag==0){
+      return searchEntryBy(redis,"student_*","gender","male").then(()=>{
+        console.log(performance.now()-time_stamp1);
+      });
+    }
+    else{
+      return redis.luasearch("student_*","gender","male").then(()=>{
+        console.log(performance.now()-time_stamp1);
+      });
+    }
+  }).then(function(){
+    return redis.memory("stats").then(function(result){
       console.log(result[0]+": "+result[1]/1000000+"MB");
       console.log(result[2]+": "+result[3]/1000000+"MB");
     });
@@ -315,17 +370,17 @@ async function CMbenchmark(redis,size,flag){
     //initialize data
   time_stamp0 = performance.now();
     console.log("benchmark size: "+size);
-    CMinitializeFakeData(redis,size)
+    return CMinitializeFakeData(redis,size);
   }).then(()=>{
     time_stamp1 = performance.now();
     console.log("time for initialize data: "+size);
     console.log(time_stamp1-time_stamp0);
-    searchEntryByBM(redis,"gender","male");
+    return searchEntryByBM(redis,"gender","male");
   }).then(()=>{
     time_stamp2 = performance.now();
     console.log("time for search operation: ");
     console.log(time_stamp2-time_stamp1);
-    redis.memory("stats").then(function(result){
+    return redis.memory("stats").then(function(result){
       console.log(result[0]+": "+result[1]/1000000+"MB");
       console.log(result[2]+": "+result[3]/1000000+"MB");
     });
@@ -394,7 +449,7 @@ async function API_test(redis){
   //sort all profile by age
   sortEntryBy(redis,"ID","age","student_*->",["name","age","gender"]);
   //search all male profile
-  searchEntryBy(redis,"student_",0,5,"gender","male");
+  searchEntryBy(redis,"student_*","gender","male");
   //initialize stream
   var today = new Date();
   var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
@@ -407,14 +462,48 @@ async function API_test(redis){
   subscribeStream(redis,'fakestream', console.log);
 }
 
+async function benchAll(){
+  Promise.resolve(benchmark(redis,size,0)).then(function(){
+    return Promise.resolve(benchmark2(redis,size,0));
+}).then(function(){
+    return Promise.resolve(CMbenchmark(redis,size,0));
+});
+}
+
+async function benchAll2(){
+  const result1 = await benchmark(redis,size,0);
+  const result2 = await benchmark2(redis,size,0);
+  const result3 = await CMbenchmark(redis,size,0);
+}
+
 const {performance} = require('perf_hooks');
 var Redis = require("ioredis");
+const R = require('ramda');
 
 //single redis mode
 var redis = new Redis();
 size=100000;
+//lua script
+const LuaScript = `local result = {}
+local entryList = redis.call("scan",0,"MATCH",KEYS[1],"COUNT",100000)
+entryList = entryList[2]
+for i = 1, table.getn(entryList), 1
+do
+  local hashRes = redis.call("hget",entryList[i],KEYS[2])
+  if hashRes == KEYS[3] then
+    table.insert(result,entryList[i])
+    table.insert(result,hashRes)
+  end
+end
+return result`;
+
+redis.defineCommand("luasearch",{
+  numberOfKeys: 3,
+  lua: LuaScript
+});
 //use below line to benchmark the hash-list method
-//DO NOT benchmark both at same time, comment this line when benchmarking list method. 
-benchmark(redis,size,0);
+//DO NOT benchmark both at same time, comment this line when benchmarking list method.
+benchmark(redis,size,0,1);
 //uncomment below line to benchmark the string method
 //CMbenchmark(redis,size,0);
+//API_test(redis);

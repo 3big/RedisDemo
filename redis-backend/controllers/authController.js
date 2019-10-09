@@ -2,7 +2,7 @@ const Redis = require('ioredis');
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 const redis = new Redis();
-const JWT_SECRETE = 'secrete';
+
 //authorization middleware
 exports.protect = async (req, res, next) => {
   //console.log(JSON.stringify(req.headers));
@@ -18,7 +18,10 @@ exports.protect = async (req, res, next) => {
     return;
   } else {
     try {
-      const decoded = await promisify(jwt.verify)(token, JWT_SECRETE);
+      const decoded = await promisify(jwt.verify)(
+        token,
+        process.env.JWT_SECRETE
+      );
     } catch (err) {
       res.status(400).json({
         status: 'fail',
@@ -61,8 +64,8 @@ const correctPW = async (username, password) => {
 exports.logIn = async (req, res) => {
   const pwFlag = await correctPW(req.body.username, req.body.password);
   if (pwFlag) {
-    const token = jwt.sign({ id: req.body.usename }, JWT_SECRETE, {
-      expiresIn: '1d'
+    const token = jwt.sign({ id: req.body.usename }, process.env.JWT_SECRETE, {
+      expiresIn: process.env.JWT_EXPIRES
     });
     res.status(201).json({
       status: 'success',
